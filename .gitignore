@@ -1,0 +1,48 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+
+# --- Environment variables / secrets ---
+.env
+
+# --- PyCharm / IDE ---
+.idea/
+*.iml
+
+# --- Claude Code ---
+# Per-machine settings only. A shared .claude/settings.json, if we add one,
+# is meant to be committed.
+.claude/settings.local.json
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Data (raw/processed data isn't committed; keep folder structure via .gitkeep) ---
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# --- ML artifacts ---
+mlruns/
+mlartifacts/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# --- Docker ---
+*.log
+
+# --- OS ---
+.DS_Store
+Thumbs.db

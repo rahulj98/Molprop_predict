@@ -1,0 +1,28 @@
+[project]
+name = "molecular-property-predictor"
+version = "0.1.0"
+description = "Predict a molecular property from the QM9 dataset and serve it as an API."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "Rahul Kumar Jingar" }]
+
+# Runtime dependencies are added phase by phase as each tool is introduced
+# (see the roadmap in CLAUDE.md), so every entry here is one we can explain.
+dependencies = []
+
+[project.optional-dependencies]
+# Tools needed to develop/test the project, but not to run it.
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# src/ layout: the package is only importable once installed, which means tests
+# exercise the same installed artifact that will later be containerised.
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -9,11 +9,23 @@ authors = [{ name = "Rahul Kumar Jingar" }]
 
 # Runtime dependencies are added phase by phase as each tool is introduced
 # (see the roadmap in CLAUDE.md), so every entry here is one we can explain.
-dependencies = []
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    # Parquet writer for the parsed dataset cache. CSV cannot store the
+    # variable-length coordinate arrays, and loses dtypes on every round trip.
+    "pyarrow>=15.0",
+]
 
 [project.optional-dependencies]
 # Tools needed to develop/test the project, but not to run it.
-dev = ["pytest>=8.0"]
+dev = [
+    "pytest>=8.0",
+    # Notebook exploration (Phase 1). Kept in dev, not runtime: the API we
+    # ship later must never depend on Jupyter being installed.
+    "jupyterlab>=4.0",
+    "matplotlib>=3.8",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

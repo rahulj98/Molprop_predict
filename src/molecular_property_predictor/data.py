@@ -23,6 +23,22 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+# --- Locations --------------------------------------------------------------
+
+#: Repository root, derived from this file's location rather than from the
+#: current working directory. A notebook launched from ``notebooks/`` and a
+#: test launched from the repo root must resolve ``data/`` to the same place --
+#: anchoring on the working directory instead silently gives them two separate
+#: copies of the dataset.
+#:
+#: This holds because the package is installed editable (``pip install -e .``),
+#: so ``__file__`` still points into ``src/``. Phase 7 will pass container
+#: paths explicitly rather than relying on it.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+DEFAULT_RAW_DIR = PROJECT_ROOT / "data" / "raw"
+DEFAULT_PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+
 # --- Provenance -------------------------------------------------------------
 
 QM9_XYZ_URL = "https://ndownloader.figshare.com/files/3195389"
@@ -200,8 +216,8 @@ def load_uncharacterized(path: Path) -> set[int]:
 
 
 def load_qm9(
-    raw_dir: Path | str = "data/raw",
-    processed_dir: Path | str = "data/processed",
+    raw_dir: Path | str = DEFAULT_RAW_DIR,
+    processed_dir: Path | str = DEFAULT_PROCESSED_DIR,
     *,
     exclude_uncharacterized: bool = True,
     use_cache: bool = True,

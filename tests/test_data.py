@@ -1,9 +1,9 @@
 """Tests for QM9 loading, parsing, and splitting.
 
-These run without the 82 MB download: the molecule fixture below is the
-verbatim contents of ``dsgdb9nsd_000001.xyz`` (methane) from the published
-archive, so the parser is tested against the real format rather than against
-an idealised version of it.
+These run without the 82 MB download: the ``methane`` fixture in
+``conftest.py`` is the verbatim contents of a real archive member, so the
+parser is tested against the real format rather than against an idealised
+version of it.
 """
 
 from __future__ import annotations
@@ -13,7 +13,10 @@ import pandas as pd
 import pytest
 
 from molecular_property_predictor.data import (
+    DEFAULT_PROCESSED_DIR,
+    DEFAULT_RAW_DIR,
     HARTREE_TO_EV,
+    PROJECT_ROOT,
     _parse_float,
     geometry,
     load_uncharacterized,
@@ -21,20 +24,20 @@ from molecular_property_predictor.data import (
     split_dataset,
 )
 
-METHANE_XYZ = (
-    "5\n"
-    "gdb 1\t157.7118\t157.70997\t157.70699\t0.\t13.21\t-0.3877\t0.1171\t0.5048\t"
-    "35.3641\t0.044749\t-40.47893\t-40.476062\t-40.475117\t-40.498597\t6.469\t\n"
-    "C\t-0.0126981359\t 1.0858041578\t 0.0080009958\t-0.535689\n"
-    "H\t 0.002150416\t-0.0060313176\t 0.0019761204\t 0.133921\n"
-    "H\t 1.0117308433\t 1.4637511618\t 0.0002765748\t 0.133922\n"
-    "H\t-0.540815069\t 1.4475266138\t-0.8766437152\t 0.133923\n"
-    "H\t-0.5238136345\t 1.4379326443\t 0.9063972942\t 0.133923\n"
-    "1341.307\t1341.3284\t1341.365\t1562.6731\t1562.7453\t3038.3205\t3151.6034\t"
-    "3151.6788\t3151.7078\n"
-    "C\tC\t\n"
-    "InChI=1S/CH4/h1H4\tInChI=1S/CH4/h1H4\n"
-)
+# --- Locations --------------------------------------------------------------
+
+
+def test_default_data_paths_are_anchored_to_the_repository():
+    """Regression: a relative default resolves against the working directory.
+
+    A notebook launched from ``notebooks/`` then builds its own private copy of
+    the dataset rather than reusing the one at the repository root -- which is
+    exactly what happened before these defaults became absolute.
+    """
+    assert PROJECT_ROOT.is_absolute()
+    assert (PROJECT_ROOT / "pyproject.toml").exists()
+    assert DEFAULT_RAW_DIR == PROJECT_ROOT / "data" / "raw"
+    assert DEFAULT_PROCESSED_DIR == PROJECT_ROOT / "data" / "processed"
 
 
 # --- Numeric parsing --------------------------------------------------------
@@ -64,61 +67,51 @@ def test_plain_float_would_fail_on_mathematica_notation():
 # --- Structure parsing ------------------------------------------------------
 
 
-def test_parse_xyz_reads_molecule_identity():
-    record = parse_xyz(METHANE_XYZ)
-
-    assert record["index"] == 1
-    assert record["n_atoms"] == 5
-    assert record["elements"] == ["C", "H", "H", "H", "H"]
-    assert record["atomic_numbers"] == [6, 1, 1, 1, 1]
-    assert record["smiles_gdb17"] == "C"
-    assert record["smiles_relaxed"] == "C"
-    assert record["inchi_gdb17"] == "InChI=1S/CH4/h1H4"
+def test_parse_xyz_reads_molecule_identity(methane):
+    assert methane["index"] == 1
+    assert methane["n_atoms"] == 5
+    assert methane["elements"] == ["C", "H", "H", "H", "H"]
+    assert methane["atomic_numbers"] == [6, 1, 1, 1, 1]
+    assert methane["smiles_gdb17"] == "C"
+    assert methane["smiles_relaxed"] == "C"
+    assert methane["inchi_gdb17"] == "InChI=1S/CH4/h1H4"
 
 
-def test_parse_xyz_converts_hartree_properties_to_ev():
-    record = parse_xyz(METHANE_XYZ)
-
-    assert record["homo"] == pytest.approx(-0.3877 * HARTREE_TO_EV)
-    assert record["lumo"] == pytest.approx(0.1171 * HARTREE_TO_EV)
+def test_parse_xyz_converts_hartree_properties_to_ev(methane):
+    assert methane["homo"] == pytest.approx(-0.3877 * HARTREE_TO_EV)
+    assert methane["lumo"] == pytest.approx(0.1171 * HARTREE_TO_EV)
 
 
-def test_parse_xyz_leaves_non_hartree_properties_unconverted():
+def test_parse_xyz_leaves_non_hartree_properties_unconverted(methane):
     """Cv is cal/mol/K and alpha is a0^3 -- neither is an energy."""
-    record = parse_xyz(METHANE_XYZ)
-
-    assert record["Cv"] == pytest.approx(6.469)
-    assert record["alpha"] == pytest.approx(13.21)
+    assert methane["Cv"] == pytest.approx(6.469)
+    assert methane["alpha"] == pytest.approx(13.21)
 
 
-def test_parse_xyz_gap_is_consistent_with_homo_and_lumo():
+def test_parse_xyz_gap_is_consistent_with_homo_and_lumo(methane):
     """Internal consistency: the published gap must equal lumo - homo."""
-    record = parse_xyz(METHANE_XYZ)
-
-    assert record["gap"] == pytest.approx(record["lumo"] - record["homo"])
+    assert methane["gap"] == pytest.approx(methane["lumo"] - methane["homo"])
 
 
-def test_parse_xyz_rejects_wrong_property_count():
+def test_parse_xyz_rejects_wrong_property_count(methane_xyz):
     """A truncated header must fail loudly, not silently mislabel columns."""
-    truncated = METHANE_XYZ.replace("\t6.469\t\n", "\n", 1)
+    truncated = methane_xyz.replace("\t6.469\t\n", "\n", 1)
 
     with pytest.raises(ValueError):
         parse_xyz(truncated)
 
 
-def test_geometry_reshapes_coordinates_to_atoms_by_three():
-    record = parse_xyz(METHANE_XYZ)
-    atomic_numbers, coordinates = geometry(pd.Series(record))
+def test_geometry_reshapes_coordinates_to_atoms_by_three(methane):
+    atomic_numbers, coordinates = geometry(pd.Series(methane))
 
     assert coordinates.shape == (5, 3)
     assert atomic_numbers.shape == (5,)
     np.testing.assert_allclose(coordinates[0], [-0.0126981359, 1.0858041578, 0.0080009958])
 
 
-def test_geometry_gives_physically_sensible_bond_lengths():
+def test_geometry_gives_physically_sensible_bond_lengths(methane):
     """Every C-H bond in methane should be about 1.09 A."""
-    record = parse_xyz(METHANE_XYZ)
-    _, coordinates = geometry(pd.Series(record))
+    _, coordinates = geometry(pd.Series(methane))
 
     bond_lengths = np.linalg.norm(coordinates[1:] - coordinates[0], axis=1)
     np.testing.assert_allclose(bond_lengths, 1.09, atol=0.02)

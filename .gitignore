@@ -35,6 +35,10 @@ data/processed/*
 # --- ML artifacts ---
 mlruns/
 mlartifacts/
+# Trained artifacts and their training histories are build outputs: they are
+# reproducible from the code plus the recorded seeds, and a 4 MB checkpoint has
+# no business in git history.
+models/
 *.pt
 *.pth
 *.ckpt

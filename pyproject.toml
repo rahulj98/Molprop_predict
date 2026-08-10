@@ -19,6 +19,12 @@ dependencies = [
     # fitted here is part of the artifact the API will load in Phase 6 -- a
     # prediction needs the same preprocessing the model was trained with.
     "scikit-learn>=1.5",
+    # The network (Phase 4). On Windows this resolves to the CPU build, which
+    # is what we train on: the model is small enough that an epoch takes about
+    # a second on CPU, so a 2.5 GB CUDA wheel would buy very little. The code
+    # uses CUDA automatically if a CUDA build is present (see
+    # model.resolve_device), it just is not required.
+    "torch>=2.4",
 ]
 
 [project.optional-dependencies]

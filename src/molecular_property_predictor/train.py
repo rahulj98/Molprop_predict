@@ -196,6 +196,7 @@ def train_model(
     processed_dir: Path | str = DEFAULT_PROCESSED_DIR,
     device: str | torch.device | None = None,
     report: Callable[[str], None] | None = None,
+    on_epoch: Callable[[int, dict[str, float]], None] | None = None,
 ) -> TrainingRun:
     """Train one network and return the best epoch's weights.
 
@@ -204,6 +205,16 @@ def train_model(
     keeps falling while validation stops improving, and the final weights are
     then worse than an earlier snapshot. Note that this is another choice made
     by looking at validation, which is exactly why the test split stays sealed.
+
+    Args:
+        on_epoch: Called after every epoch with ``(epoch, metrics)``, where
+            ``metrics`` holds the training loss and the validation scores.
+            This is the seam Phase 5 hangs experiment tracking on. It is a
+            plain callback rather than an MLflow call inlined here on purpose:
+            this module should train networks and know nothing about where the
+            numbers are being recorded, so the tracking backend can be swapped
+            or dropped without touching the loop.
+        report: Called with preformatted lines, for humans watching a notebook.
 
     Returns:
         A :class:`TrainingRun`; ``model`` already carries the best weights.
@@ -270,6 +281,9 @@ def train_model(
         train_loss = running_loss / len(x_train)
         metrics = evaluate_model(model, x_validation_t, y_validation)
         history.append({"epoch": epoch, "train_loss": train_loss, **metrics})
+
+        if on_epoch is not None:
+            on_epoch(epoch, {"train_loss": train_loss, **metrics})
 
         if metrics["mae_ev"] < best_mae:
             best_mae = metrics["mae_ev"]

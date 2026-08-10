@@ -31,6 +31,12 @@ dependencies = [
 # Tools needed to develop/test the project, but not to run it.
 dev = [
     "pytest>=8.0",
+    # Experiment tracking (Phase 5). Deliberately dev, not runtime: runs are
+    # recorded while training, and the API in Phase 6 loads a .pt artifact
+    # through model.load_artifact without MLflow being involved. Putting it in
+    # runtime would drag a tracking client, a database driver and a web server
+    # into a container whose only job is to answer one prediction request.
+    "mlflow>=2.14",
     # Notebook exploration (Phase 1). Kept in dev, not runtime: the API we
     # ship later must never depend on Jupyter being installed.
     "jupyterlab>=4.0",

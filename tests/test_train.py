@@ -195,6 +195,50 @@ def test_unknown_loss_is_rejected(frame, config, tmp_path):
         )
 
 
+# --- The epoch callback -----------------------------------------------------
+#
+# The seam Phase 5 hangs experiment tracking on. Tested here rather than in
+# test_tracking.py because the contract belongs to the loop: anything logging
+# from it depends on being called once per epoch with these keys.
+
+
+def test_on_epoch_is_called_once_per_epoch(frame, config, tmp_path):
+    seen: list[tuple[int, dict]] = []
+
+    run = train_model(
+        frame, config, processed_dir=tmp_path, device="cpu",
+        on_epoch=lambda epoch, metrics: seen.append((epoch, metrics)),
+    )
+
+    assert [epoch for epoch, _ in seen] == list(range(1, len(run.history) + 1))
+
+
+def test_on_epoch_receives_the_loss_and_the_validation_metrics(
+    frame, config, tmp_path
+):
+    seen: list[dict] = []
+
+    run = train_model(
+        frame, config, processed_dir=tmp_path, device="cpu",
+        on_epoch=lambda epoch, metrics: seen.append(metrics),
+    )
+
+    assert set(seen[0]) == {"train_loss", "mae_ev", "rmse_ev", "r2"}
+    assert seen[-1]["mae_ev"] == pytest.approx(run.history["mae_ev"].iloc[-1])
+    assert all(isinstance(value, float) for value in seen[0].values())
+
+
+def test_training_is_unchanged_by_the_callback(frame, config, tmp_path):
+    """The callback observes; it must not be able to alter the run."""
+    without = train_model(frame, config, processed_dir=tmp_path, device="cpu")
+    with_callback = train_model(
+        frame, config, processed_dir=tmp_path, device="cpu",
+        on_epoch=lambda epoch, metrics: metrics.clear(),
+    )
+
+    pd.testing.assert_frame_equal(without.history, with_callback.history)
+
+
 # --- Evaluation -------------------------------------------------------------
 
 

@@ -46,3 +46,8 @@ mlartifacts/
 # --- OS ---
 .DS_Store
 Thumbs.db
+
+# --- Working notes ---
+# Running build diary, kept local for now. Duplicates what the commit
+# messages already record, so it is not part of the public repo.
+progress.txt

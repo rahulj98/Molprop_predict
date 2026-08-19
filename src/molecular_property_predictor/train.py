@@ -40,7 +40,7 @@ from __future__ import annotations
 import copy
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -60,6 +60,8 @@ from molecular_property_predictor.model import (
     DEFAULT_MODEL_DIR,
     ArtifactMetadata,
     MolecularNet,
+    load_artifact,
+    predict,
     resolve_device,
     save_artifact,
 )
@@ -325,6 +327,68 @@ def train_model(
         device=str(resolved),
         extras={"target": target},
     )
+
+
+def evaluate_on_test(
+    frame: pd.DataFrame,
+    artifact_path: Path | str,
+    *,
+    target: str = TARGET_PROPERTY,
+    processed_dir: Path | str = DEFAULT_PROCESSED_DIR,
+) -> dict[str, float]:
+    """Score a saved artifact on the held-out test split.
+
+    **This is the function that spends the test set, and it should be called
+    once.** Every score in Phases 3 to 5 is a validation score, because each one
+    informed a choice -- which representation, which loss, which learning rate.
+    A split used to make choices can no longer estimate performance on unseen
+    data, since the choices have been fitted to it. The test split has been
+    untouched since Phase 1 precisely so that one number at the end means what
+    it says.
+
+    Note what this deliberately does not accept: a seed, a representation, or a
+    model shape. All three are read from the artifact's own metadata, so the
+    molecules scored here are exactly the ones that checkpoint never saw.
+    Passing a seed would allow evaluating a model against the wrong split --
+    which would not raise, and would silently report a number inflated by
+    having trained on some of these molecules.
+
+    Returns:
+        ``mae_ev``, ``rmse_ev`` and ``r2``, as :func:`evaluate` returns them.
+    """
+    model, scaler, metadata = load_artifact(artifact_path, device="cpu")
+
+    _, _, test_rows = split_positions(frame, seed=metadata.split_seed)
+    features = load_features(frame, metadata.representation, processed_dir)
+    y_test = frame[target].to_numpy(dtype=np.float32)[test_rows]
+
+    predictions = predict(model, scaler, features[test_rows], device="cpu")
+    return evaluate(y_test, predictions)
+
+
+def record_test_score(
+    artifact_path: Path | str,
+    test_mae_ev: float,
+    destination: Path | str | None = None,
+) -> Path:
+    """Rewrite an artifact with its test MAE stored in the metadata.
+
+    Keeping the score *inside* the checkpoint rather than in a separate file is
+    the same argument the scaler already makes: a number that has to travel
+    alongside the weights will eventually be separated from them. The served
+    API reports this through ``/model``, so a caller can see the model's
+    measured error without consulting the repository.
+
+    Args:
+        destination: Where to write. Defaults to overwriting ``artifact_path``.
+
+    Returns:
+        The path written.
+    """
+    model, scaler, metadata = load_artifact(artifact_path, device="cpu")
+    updated = replace(metadata, test_mae_ev=float(test_mae_ev))
+
+    return save_artifact(destination or artifact_path, model, scaler, updated)
 
 
 def train_and_cache(

@@ -12,11 +12,14 @@ import pandas as pd
 import pytest
 import torch
 
+from molecular_property_predictor.model import predict
 from molecular_property_predictor.train import (
     LOSSES,
     TrainingConfig,
     evaluate_model,
+    evaluate_on_test,
     prepare_data,
+    record_test_score,
     set_seed,
     train_model,
 )
@@ -365,3 +368,94 @@ def test_set_seed_makes_initial_weights_repeatable():
     second = MolecularNet(n_features=8, hidden_sizes=(4,)).layers[0].weight
 
     torch.testing.assert_close(first, second)
+
+
+# --- The one-time test-set evaluation ---------------------------------------
+
+
+@pytest.fixture
+def saved_artifact(frame, config, tmp_path):
+    """A trained checkpoint on disk, as `evaluate_on_test` expects one."""
+    from molecular_property_predictor.model import save_artifact
+
+    run = train_model(frame, config, processed_dir=tmp_path)
+    return save_artifact(
+        tmp_path / "trained.pt", run.model, run.scaler, run.metadata()
+    )
+
+
+def test_evaluate_on_test_returns_the_three_metrics(frame, saved_artifact, tmp_path):
+    scores = evaluate_on_test(frame, saved_artifact, processed_dir=tmp_path)
+
+    assert set(scores) == {"mae_ev", "rmse_ev", "r2"}
+    assert all(np.isfinite(value) for value in scores.values())
+
+
+def test_evaluate_on_test_scores_the_split_the_model_never_saw(
+    frame, saved_artifact, tmp_path
+):
+    """The test rows must come from the artifact's own seed, not a default.
+
+    Scoring a model against a split it was partly trained on does not raise --
+    it just reports a number that is better than the truth. Two artifacts that
+    differ only in `split_seed` must therefore be scored on different molecules,
+    which is what this asserts.
+    """
+    from dataclasses import replace as replace_dataclass
+
+    from molecular_property_predictor.model import load_artifact, save_artifact
+
+    model, scaler, metadata = load_artifact(saved_artifact)
+    other = save_artifact(
+        tmp_path / "seed7.pt",
+        model,
+        scaler,
+        replace_dataclass(metadata, split_seed=7),
+    )
+
+    with_seed_zero = evaluate_on_test(frame, saved_artifact, processed_dir=tmp_path)
+    with_seed_seven = evaluate_on_test(frame, other, processed_dir=tmp_path)
+
+    assert with_seed_zero["mae_ev"] != with_seed_seven["mae_ev"]
+
+
+def test_record_test_score_stores_the_number_in_the_metadata(
+    saved_artifact, tmp_path
+):
+    from molecular_property_predictor.model import load_artifact
+
+    record_test_score(saved_artifact, 0.1234, destination=tmp_path / "served.pt")
+    _, _, metadata = load_artifact(tmp_path / "served.pt")
+
+    assert metadata.test_mae_ev == pytest.approx(0.1234)
+
+
+def test_record_test_score_leaves_the_weights_untouched(
+    frame, saved_artifact, tmp_path
+):
+    """Recording a score must not perturb the model that earned it."""
+    from molecular_property_predictor.model import load_artifact
+
+    features = np.array([[4.0, 3.0, 0.0, 1.0, 0.0]])
+    before = predict(*load_artifact(saved_artifact)[:2], features)
+
+    served = record_test_score(saved_artifact, 0.5, destination=tmp_path / "s.pt")
+    after = predict(*load_artifact(served)[:2], features)
+
+    np.testing.assert_allclose(before, after, rtol=0, atol=0)
+
+
+def test_record_test_score_defaults_to_overwriting_in_place(saved_artifact):
+    from molecular_property_predictor.model import load_artifact
+
+    written = record_test_score(saved_artifact, 0.9)
+
+    assert written == saved_artifact
+    assert load_artifact(saved_artifact)[2].test_mae_ev == pytest.approx(0.9)
+
+
+def test_artifacts_without_a_test_score_load_as_none(saved_artifact):
+    """Backward compatibility: every checkpoint written before Phase 6."""
+    from molecular_property_predictor.model import load_artifact
+
+    assert load_artifact(saved_artifact)[2].test_mae_ev is None

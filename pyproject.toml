@@ -25,6 +25,18 @@ dependencies = [
     # uses CUDA automatically if a CUDA build is present (see
     # model.resolve_device), it just is not required.
     "torch>=2.4",
+    # The API (Phase 6). Both are runtime, and declaring them matters more than
+    # it looks: this environment already had fastapi and uvicorn installed,
+    # because mlflow depends on them -- but mlflow is a *dev* dependency, so a
+    # container built from the runtime set alone would have had neither. An
+    # import that works only by way of another package's dependency tree is a
+    # deployment failure waiting for Phase 7.
+    "fastapi>=0.115",
+    # The ASGI server. FastAPI is a framework and does not own a socket; uvicorn
+    # is the process that accepts connections and speaks HTTP. Keeping them
+    # separate is what lets the app be tested without a network.
+    # The [standard] extra adds the C-accelerated HTTP parser and websockets.
+    "uvicorn[standard]>=0.30",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +53,10 @@ dev = [
     # ship later must never depend on Jupyter being installed.
     "jupyterlab>=4.0",
     "matplotlib>=3.8",
+    # Required by fastapi.testclient (Phase 6). Dev rather than runtime: it is
+    # the HTTP *client* the tests drive the app with, and the served container
+    # has no reason to make outbound requests.
+    "httpx>=0.27",
 ]
 
 [build-system]

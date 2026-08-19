@@ -123,6 +123,19 @@ class ArtifactMetadata:
     epochs_trained: int
     best_epoch: int
     validation_mae_ev: float
+    #: Mean absolute error on the held-out test split, in eV.
+    #:
+    #: Optional, with a default, for two reasons. The first is compatibility:
+    #: ``load_artifact`` reconstructs this dataclass by keyword from whatever
+    #: the checkpoint stored, so a required field would make every artifact
+    #: written before Phase 6 fail to load.
+    #:
+    #: The second is honest bookkeeping. Every score in Phases 3 to 5 is a
+    #: *validation* score, because the test split is opened exactly once, for
+    #: the single checkpoint that ships. ``None`` therefore means "not
+    #: measured", which is a different statement from a number -- and a
+    #: different statement from zero.
+    test_mae_ev: float | None = None
 
 
 def save_artifact(

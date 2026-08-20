@@ -57,6 +57,12 @@ dev = [
     # the HTTP *client* the tests drive the app with, and the served container
     # has no reason to make outbound requests.
     "httpx>=0.27",
+    # Murcko scaffolds for the scaffold split (Part II). Dev rather than
+    # runtime: the scaffold assignment is computed once when a split is made
+    # and never again -- inference never sees a SMILES string, only geometry.
+    # Keeping it out of the runtime set also keeps a large chemistry toolkit
+    # out of the served container.
+    "rdkit>=2024.3",
 ]
 
 [build-system]
@@ -75,4 +81,5 @@ testpaths = ["tests"]
 addopts = "--strict-markers"
 markers = [
     "docker: needs a built image and a running Docker daemon (Phase 7). Run the fast suite with -m 'not docker'.",
+    "dataset: needs the QM9 archive or its parsed cache on disk (Part II). Skipped on a fresh clone.",
 ]

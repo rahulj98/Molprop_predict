@@ -65,3 +65,8 @@ Thumbs.db
 # Running build diary, kept local for now. Duplicates what the commit
 # messages already record, so it is not part of the public repo.
 progress.txt
+
+# --- pytest ---
+# pytest writes its own .gitignore inside this directory, so it is already
+# invisible to git; naming it here is for readers, not for git.
+.pytest_cache/

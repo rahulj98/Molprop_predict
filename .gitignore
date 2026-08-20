@@ -38,11 +38,21 @@ mlartifacts/
 # Trained artifacts and their training histories are build outputs: they are
 # reproducible from the code plus the recorded seeds, and a 4 MB checkpoint has
 # no business in git history.
-models/
+#
+# `models/*` rather than `models/`: git does not descend into an excluded
+# directory, so a negation below could never re-include anything inside it.
+models/*
 *.pt
 *.pth
 *.ckpt
 *.onnx
+
+# The one deliberate exception (Phase 7). The Dockerfile bakes this checkpoint
+# into the image, so the build has to be reproducible from a clone -- a
+# gitignored input would mean `docker build` produces a container that starts
+# with no model. 4.2 MB, committed knowingly, and only this one file: every
+# other checkpoint stays a build output.
+!models/served.pt
 
 # --- Docker ---
 *.log

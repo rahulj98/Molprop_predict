@@ -1,0 +1,19 @@
+# Line endings, pinned where they actually matter.
+#
+# This repo is developed on Windows and built into a Linux container. Git's
+# default on Windows checks files out with CRLF, which is harmless for Python
+# but not for files a Linux shell reads literally: a trailing \r ends up inside
+# the command a `RUN` or `CMD` executes, producing errors that name a command
+# with an invisible character appended to it.
+#
+# `text=auto` lets git normalise text files to LF in the repository while
+# leaving the working copy alone; the explicit `eol=lf` entries force the
+# checked-out file to LF as well, on every platform.
+* text=auto
+
+Dockerfile   text eol=lf
+.dockerignore text eol=lf
+*.sh         text eol=lf
+
+# Checkpoints are binary; never let a line-ending filter near one.
+*.pt binary

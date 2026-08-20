@@ -1,0 +1,67 @@
+# What NOT to send to the Docker daemon as build context.
+#
+# `docker build .` does not read the current directory the way a compiler does.
+# It tars up everything in it and ships that tarball to the daemon *before* the
+# first instruction runs. So this file matters for three separate reasons:
+#
+# 1. Speed. Without it, every build would upload .venv/, the QM9 tarball and
+#    the whole mlruns/ tree -- hundreds of megabytes, on every single build.
+# 2. Cache correctness. `COPY . .` invalidates its layer whenever anything in
+#    the context changes. If .git is in the context, a commit -- which changes
+#    nothing about the code -- rebuilds the image from that layer down.
+# 3. Secrets. Anything COPYed into an image stays in that layer forever, even
+#    if a later instruction deletes it. `.env` never enters the context at all.
+#
+# The syntax is .gitignore-like but it is a *separate* mechanism: Docker does
+# not read .gitignore, which is why untracked-but-present files such as .venv/
+# have to be named again here.
+
+# --- Version control ---
+.git
+.gitignore
+.dockerignore
+
+# --- Virtual environments (the image builds its own) ---
+.venv/
+venv/
+env/
+
+# --- Secrets ---
+.env
+
+# --- Python build/test residue ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# --- Data and experiment output ---
+# The dataset is training input; the image only serves. mlruns/ is a local
+# tracking store measured in hundreds of megabytes.
+data/
+mlruns/
+mlartifacts/
+notebooks/
+
+# --- Trained artifacts ---
+# Everything in models/ except the one checkpoint the API serves. The negation
+# has to come after the exclusion; Docker applies the last matching rule.
+models/*
+!models/served.pt
+
+# --- Editor / OS / local notes ---
+.idea/
+.claude/
+*.iml
+.DS_Store
+Thumbs.db
+progress.txt
+
+# --- Docs and tests are not needed to run the service ---
+# Kept out of the runtime image deliberately: a container should contain what
+# it runs and nothing else. Note pyproject.toml requires README.md to build,
+# so README.md is *not* excluded here.
+tests/
+Dockerfile

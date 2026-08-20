@@ -86,15 +86,30 @@ The final model was then scored once on a **test** set it had never touched, and
 
 ## Try it yourself
 
+The quickest route needs only Docker — no Python, no virtual environment, no downloading the dataset. The trained model is inside the image.
+
 ```bash
 git clone https://github.com/rahulj98/Molprop_predict
 cd Molprop_predict
+
+docker build -t molecular-property-predictor .
+docker run --rm -p 8000:8000 molecular-property-predictor
+```
+
+The service is then at `http://localhost:8000`, with `docker ps` reporting `healthy` once the model has loaded. `pytest -m docker` runs a small suite against the built image itself — that the checkpoint is really inside it, that a prediction survives the trip over a socket, and that the process is not running as root. The other 217 tests run in-process and need no Docker (`pytest -m "not docker"`).
+
+<details>
+<summary>Or run it directly with Python</summary>
+
+```bash
 pip install -e ".[dev]"
 
 # Point the service at a trained checkpoint and start it
 export MODEL_PATH=models/served.pt      # Windows: set MODEL_PATH=models\served.pt
 uvicorn molecular_property_predictor.api.main:app --reload
 ```
+
+</details>
 
 Then send it methane:
 
@@ -121,11 +136,15 @@ curl -X POST http://localhost:8000/predict \
 
 Interactive documentation is generated automatically at `http://localhost:8000/docs`, and `GET /model` reports exactly which checkpoint is loaded and how accurate it measured.
 
-Note that `models/` is not in this repository — trained models are build outputs, reproducible from the code and the recorded random seeds. Run the notebooks in order to produce one.
+Trained models are build outputs — reproducible from the code and the recorded random seeds — so `models/` is not in this repository, with one deliberate exception: `models/served.pt`, the 4.2 MB checkpoint the API serves, is committed so that `docker build` works from a clone. Every other checkpoint is produced by running the notebooks in order.
+
+### About the image
+
+It is **2.09 GB**, which is large for a web service and worth explaining rather than hiding. PyTorch alone is 750 MB of that; the scientific Python stack underneath it (SciPy, pandas, PyArrow, scikit-learn, NumPy) is another 450 MB. The Dockerfile already takes the single biggest saving available — installing the CPU-only build of PyTorch instead of the default one, which would drag in ~2.5 GB of CUDA libraries for a machine with no GPU — and the remainder is essentially the cost of shipping PyTorch at all. Getting substantially below this would mean exporting the model to a lighter inference runtime such as ONNX Runtime, which is a real option, and a different project.
 
 ## Project status
 
-Phases 0–6 complete: data, features, baseline models, neural network, experiment tracking, and a working API. Still to come: containerization (Phase 7), cloud deployment (Phase 8), and final polish (Phase 9).
+Phases 0–7 complete: data, features, baseline models, neural network, experiment tracking, a working API, and a container image. Still to come: cloud deployment (Phase 8) and final polish (Phase 9).
 
 Each phase is committed separately so the build process itself is visible, not just the finished result. The `notebooks/` directory contains the executed analysis for every phase, including the negative results.
 

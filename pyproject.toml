@@ -70,3 +70,9 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Markers are declared rather than invented at use site: with --strict-markers a
+# typo becomes an error instead of a silently-never-selected test.
+addopts = "--strict-markers"
+markers = [
+    "docker: needs a built image and a running Docker daemon (Phase 7). Run the fast suite with -m 'not docker'.",
+]

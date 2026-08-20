@@ -47,7 +47,7 @@ This is a **portfolio/CV project**. Two things matter more than raw model accura
 - **Experiment tracking**: MLflow
 - **Serving**: FastAPI
 - **Containerization**: Docker
-- **Deployment**: Azure or AWS free tier (decide together in Phase 8; don't assume one over the other)
+- **Deployment**: out of scope — see Phase 8 in the roadmap below
 - **Repo structure**: standard Python package layout, `pytest` for tests, `README.md` as the public front door
 
 ## Roadmap (build in this order)
@@ -60,8 +60,8 @@ This is a **portfolio/CV project**. Two things matter more than raw model accura
 - **Phase 5 — MLflow**: add experiment tracking to Phase 4's training loop. Explain what problem MLflow solves that just printing results to console doesn't.
 - **Phase 6 — FastAPI**: wrap the trained model in a REST API with at least one prediction endpoint. Explain REST basics as needed.
 - **Phase 7 — Docker**: containerize the API. Explain what a container actually is and why we don't just "run the Python file" in production.
-- **Phase 8 — Cloud deployment**: deploy the container so it's reachable by URL. Explain the free-tier option we pick and its limits.
-- **Phase 9 — Polish for CV/GitHub**: finalize README, add a short demo (screenshot/GIF/example request-response), make sure the repo reads well to a recruiter skimming it in two minutes.
+- **Phase 8 — Cloud deployment: dropped, deliberately.** The original plan was to deploy the container to a free tier and expose a public URL. Every option that can host a 2 GB PyTorch container now requires either a credit card on file (Azure, AWS, GCP) or a paid subscription (Hugging Face Docker Spaces). Render's free tier would have worked — the container was measured at 373–386 MB against a 512 MB cap — but by then the more useful question had been answered: this repository is meant to be *read and reproduced*, not consumed as a hosted service. The container is the deliverable, and `docker build && docker run` is the reproduction path. Recorded here rather than quietly skipped.
+- **Phase 9 — Polish for reading**: make the repo work for someone who lands on it and wants to do the same thing for their own problem. Clone-and-reproduce instructions, a guide to adapting it to a different target property, a README that orients a reader in two minutes, and a figure or two.
 
 ## Definition of done (whole project)
 

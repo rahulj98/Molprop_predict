@@ -36,7 +36,7 @@ The property predicted here is the **LUMO energy**. That choice was made on evid
 | **Model (PyTorch)** | The part that learns the pattern between "numbers describing a molecule" and "the property." A very flexible curve-fitting function that adjusts itself as it sees more examples. |
 | **Experiment tracking (MLflow)** | A logbook for every training attempt — settings used, accuracy reached. Without it you lose track of which version actually worked best after a few dozen attempts. |
 | **API (FastAPI)** | A small web service: send it a molecule, get a prediction back, in a format any program can consume. |
-| **Container (Docker)** | The code, the trained model, and everything they need packaged into one unit that behaves identically on any machine. Here it is the *reproduction* path — the way to run this without fighting a Python environment. |
+| **Container (Docker)** | The code, the trained model, and everything they need packaged into one unit that behaves identically on any machine. Not required to use this project — Python alone is enough. It matters when software has to run unattended on a server nobody curates by hand, which is the situation containers were invented for. |
 
 ## Architecture, top to bottom
 
@@ -125,28 +125,34 @@ If you only open three files, open `features.py`, `train.py`, and `notebooks/03_
 
 ## Run it
 
-The quickest route needs only Docker — no Python, no virtual environment, no dataset download. The trained model is inside the image.
+Plain Python. Nothing else is required — no Docker, and no dataset download to serve predictions, since the trained model is committed.
 
 ```bash
 git clone https://github.com/rahulj98/Molprop_predict
 cd Molprop_predict
 
+pip install -e ".[dev]"
+
+# Point the service at the trained checkpoint and start it
+export MODEL_PATH=models/served.pt      # Windows: set MODEL_PATH=models\served.pt
+uvicorn molecular_property_predictor.api.main:app --reload
+```
+
+The service is then at `http://localhost:8000`. Interactive documentation is generated automatically at `/docs`, and `GET /model` reports exactly which checkpoint is loaded and how accurate it measured.
+
+This is the route to take if you want to **work with** the code — read it, change it, retrain it. Everything in [adapt it](#adapt-it-to-your-own-problem) assumes you are here.
+
+<details>
+<summary>Or run the container, if you just want an answer</summary>
+
+Useful if you would rather not install Python 3.12, or if you are on Linux where a plain `pip install torch` pulls ~2.5 GB of CUDA libraries you may not want (the Dockerfile installs the CPU build instead).
+
+```bash
 docker build -t molecular-property-predictor .
 docker run --rm -p 8000:8000 molecular-property-predictor
 ```
 
-The service is then at `http://localhost:8000`, with `docker ps` reporting `healthy` once the model has loaded. Interactive documentation is generated automatically at `/docs`, and `GET /model` reports exactly which checkpoint is loaded and how accurate it measured.
-
-<details>
-<summary>Or run it directly with Python</summary>
-
-```bash
-pip install -e ".[dev]"
-
-# Point the service at a trained checkpoint and start it
-export MODEL_PATH=models/served.pt      # Windows: set MODEL_PATH=models\served.pt
-uvicorn molecular_property_predictor.api.main:app --reload
-```
+Same endpoints, same port, and `docker ps` reports `healthy` once the model has loaded. What you cannot do from inside the container is change anything — it serves the model, it does not let you work on it.
 
 </details>
 
@@ -173,7 +179,7 @@ curl -X POST http://localhost:8000/predict \
 
 The reference value for methane is +3.19 eV. That is an unusually large error and it is kept here deliberately: methane sits at the 100th percentile of the dataset's range, exactly where the shrinkage shown in the figure above is worst. `notebooks/06_api.ipynb` works through it, and shows eight randomly drawn molecules averaging 0.19 eV for comparison.
 
-**Tests:** `pytest` runs 222 tests. `pytest -m docker` runs the five that exercise the built image itself — that the checkpoint is really inside it, that a prediction survives a real socket, that the process is not running as root. `pytest -m "not docker"` runs the other 217 in-process, needing no Docker.
+**Tests:** `pytest` runs 269 tests, of which 261 need nothing but the installed package. Three more (`-m dataset`) check that both packages agree on the dataset and its splits, and need QM9 on disk. Five (`-m docker`) exercise the built container image — that the checkpoint is really inside it, that a prediction survives a real socket, that the process is not running as root. Both groups skip cleanly rather than failing when what they need is absent.
 
 ## Reproduce it from scratch
 
@@ -241,9 +247,11 @@ Honest next steps, roughly by expected value:
 
 ## Project status
 
-**Complete.** Phases 0–7: data, features, baselines, neural network, experiment tracking, API, container. Each is a separate commit, so the build process itself is visible rather than only its result.
+**Part I is complete**, tagged `v1.0.0`: data, features, baselines, neural network, experiment tracking, API, container. Each phase is a separate commit, so the build process itself is visible rather than only its result.
 
-**Deployment was dropped deliberately** rather than left unfinished. The original plan was to host the container behind a public URL, but every free option now requires either a credit card on file (Azure, AWS, GCP) or a paid subscription (Hugging Face Docker Spaces). More to the point, a hosted demo is not what this repository is for: it is meant to be read and reproduced, and `docker run` does that on any machine. `CLAUDE.md` records the decision in full.
+**Part II is in progress** — a graph neural network, in `src/molecular_gnn/`. Everything above hands the model a *fixed* description of a molecule; the question now is whether a model that **learns** the description does better, which is how published work reaches roughly ten times this accuracy. It is a second package rather than more modules in the first, and it imports nothing from it: a comparison between two representations is worth little if both sides lean on the same helper. The duplication that buys — its own parser, its own split — is made safe by `tests/gnn/test_equivalence.py`, the one module that imports both, which asserts they agree molecule for molecule and select identical train/validation/test sets. Part II also adds a **scaffold split**, which keeps whole ring systems on one side of the split so the test set contains skeletons no model has seen. Both models will eventually be scored under it.
+
+**Deployment was dropped deliberately** rather than left unfinished. The original plan was to host the container behind a public URL, but every free option now requires either a credit card on file (Azure, AWS, GCP) or a paid subscription (Hugging Face Docker Spaces). More to the point, a hosted demo is not what this repository is for: it is meant to be read and reproduced, and running it locally does that on any machine. `CLAUDE.md` records the decision in full.
 
 ## What this project is *not*
 

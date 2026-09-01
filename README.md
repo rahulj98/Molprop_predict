@@ -179,7 +179,11 @@ curl -X POST http://localhost:8000/predict \
 
 The reference value for methane is +3.19 eV. That is an unusually large error and it is kept here deliberately: methane sits at the 100th percentile of the dataset's range, exactly where the shrinkage shown in the figure above is worst. `notebooks/06_api.ipynb` works through it, and shows eight randomly drawn molecules averaging 0.19 eV for comparison.
 
-**Tests:** `pytest` runs 269 tests, of which 261 need nothing but the installed package. Three more (`-m dataset`) check that both packages agree on the dataset and its splits, and need QM9 on disk. Five (`-m docker`) exercise the built container image — that the checkpoint is really inside it, that a prediction survives a real socket, that the process is not running as root. Both groups skip cleanly rather than failing when what they need is absent.
+**Tests:** `pytest` runs 275 tests, of which 267 need nothing but the installed package. Three more (`-m dataset`) check that both packages agree on the dataset and its splits, and need QM9 on disk. Five (`-m docker`) exercise the built container image — that the checkpoint is really inside it, that a prediction survives a real socket, that the process is not running as root. Both groups skip cleanly rather than failing when what they need is absent.
+
+**Lint:** `ruff check` — one tool covering what flake8, isort, black, pyupgrade and bandit would otherwise cover separately. The rule selection and every exception to it are commented in `pyproject.toml`; `notebooks/` is excluded, because those are committed with their outputs and re-running them to satisfy a linter would rewrite the numbers the prose quotes.
+
+**CI:** GitHub Actions runs both of the above on a clean Ubuntu checkout, for every push to `main` and every pull request — `.github/workflows/ci.yml`. The point is not the checks themselves, which you can run locally, but that they run somewhere that is not the author's laptop: no editable install left over from last week, no package installed once and never declared. For a repository whose purpose is being cloned and reproduced, that is the failure mode worth catching.
 
 ## Reproduce it from scratch
 
@@ -259,7 +263,7 @@ To keep this honest: a learning and portfolio project, not a production system. 
 
 ## Tech stack
 
-Python · NumPy · pandas · scikit-learn · PyTorch · MLflow · FastAPI · Docker · pytest
+Python · NumPy · pandas · scikit-learn · PyTorch · MLflow · FastAPI · Docker · pytest · Ruff · GitHub Actions
 
 ## Author
 

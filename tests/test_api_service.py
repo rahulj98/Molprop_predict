@@ -11,6 +11,8 @@ fresh clone.
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
+
 import numpy as np
 import pytest
 import torch
@@ -127,7 +129,7 @@ def test_missing_artifact_names_the_file_and_the_remedy(tmp_path):
     """The error a fresh clone will hit, so it has to be actionable."""
     missing = tmp_path / "absent.pt"
 
-    with pytest.raises(FileNotFoundError, match="absent.pt") as caught:
+    with pytest.raises(FileNotFoundError, match=r"absent\.pt") as caught:
         PredictionService.from_artifact(missing)
 
     assert MODEL_PATH_ENV in str(caught.value)
@@ -253,5 +255,8 @@ def test_predictions_are_deterministic(service, methane_geometry):
 
 def test_service_is_frozen(service):
     """Nothing should swap the model out from under a concurrent request."""
-    with pytest.raises(Exception):
+    # Named rather than `Exception`: a bare `raises(Exception)` also passes if
+    # the attribute assignment fails for some unrelated reason, which would let
+    # this test keep passing after the freeze had been lost.
+    with pytest.raises(FrozenInstanceError):
         service.model = None

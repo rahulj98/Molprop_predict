@@ -106,7 +106,9 @@ def test_geometry_reshapes_coordinates_to_atoms_by_three(methane):
 
     assert coordinates.shape == (5, 3)
     assert atomic_numbers.shape == (5,)
-    np.testing.assert_allclose(coordinates[0], [-0.0126981359, 1.0858041578, 0.0080009958])
+    np.testing.assert_allclose(
+        coordinates[0], [-0.0126981359, 1.0858041578, 0.0080009958]
+    )
 
 
 def test_geometry_gives_physically_sensible_bond_lengths(methane):

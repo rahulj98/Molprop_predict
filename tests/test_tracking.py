@@ -9,6 +9,7 @@ the learning.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import mlflow
 import numpy as np
@@ -131,6 +132,7 @@ def test_track_training_logs_params_and_summary_metrics(frame, config, store, tm
     assert logged.data.params["representation"] == "composition"
     assert logged.data.params["n_features"] == "5"
     assert logged.data.params["n_train"] == "160"  # 80% of 200
+    assert logged.data.params["n_validation"] == "20"  # 10% of 200
     assert logged.data.metrics["best_val_mae_ev"] == pytest.approx(
         run.metrics["mae_ev"], rel=1e-6
     )
@@ -191,7 +193,7 @@ def test_signature_records_the_input_shape(frame, config, store, tmp_path):
     local = mlflow.artifacts.download_artifacts(
         run_id=run_id, artifact_path="signature.json"
     )
-    signature = json.loads(open(local).read())
+    signature = json.loads(Path(local).read_text(encoding="utf-8"))
 
     assert "inputs" in signature
     assert "5" in signature["inputs"]  # the five composition features
@@ -224,7 +226,7 @@ def test_load_run_artifact_rejects_a_run_with_no_checkpoint(store):
         mlflow.log_param("nothing", "attached")
         run_id = active.info.run_id
 
-    with pytest.raises(LookupError, match="no .pt artifact"):
+    with pytest.raises(LookupError, match=r"no \.pt artifact"):
         load_run_artifact(run_id, directory=store)
 
 

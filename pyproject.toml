@@ -57,6 +57,10 @@ dev = [
     # the HTTP *client* the tests drive the app with, and the served container
     # has no reason to make outbound requests.
     "httpx>=0.27",
+    # Linter and formatter, one tool for both. Ruff rather than the
+    # flake8 + isort + pyupgrade + black stack it replaces: same rules, one
+    # dependency, one config block, and fast enough that CI never waits on it.
+    "ruff>=0.6",
     # Murcko scaffolds for the scaffold split (Part II). Dev rather than
     # runtime: the scaffold assignment is computed once when a split is made
     # and never again -- inference never sees a SMILES string, only geometry.
@@ -73,6 +77,60 @@ build-backend = "setuptools.build_meta"
 # exercise the same installed artifact that will later be containerised.
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+# 88 is black's default and what this code was already written to; the handful
+# of lines that overshoot are wrapped rather than the limit raised to meet them.
+line-length = 88
+target-version = "py312"
+
+# Ruff lints notebooks by default, and these ones should not be linted. They are
+# executed narrative documents committed *with their outputs*, so that they read
+# on GitHub without being run -- which means satisfying the linter would require
+# re-executing them, and re-execution rewrites the recorded numbers and timings
+# the surrounding prose refers to. Trading a real result for a wrapped line is a
+# bad trade. (The 51 findings are what that would cost: 28 long lines, 8 zips
+# without `strict=`, 4 unused imports, 4 asserts, and 7 others.)
+#
+# Excluding here rather than only in the CI invocation is deliberate: a bare
+# `ruff check` and the one CI runs must agree, or the gate is one people learn
+# to disbelieve locally.
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+# Chosen rather than left at the default (E4/E7/E9/F, which is close to "syntax
+# errors only"). Each of these catches a class of mistake this project can
+# actually make:
+#   E, W  pycodestyle -- layout, so diffs are about content
+#   F     pyflakes -- unused imports and undefined names
+#   I     isort -- one import order, so imports stop appearing in diffs
+#   UP    pyupgrade -- keeps us on 3.12 idiom rather than 3.8 habits
+#   B     bugbear -- real traps, e.g. mutable default arguments
+#   SIM   simplify -- flags the long way round of a common construct
+#   S     bandit -- the security rules; this is what `# noqa: S310` answers to
+#   RUF   ruff's own, including RUF100, which fails an unused `noqa`
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "S", "RUF"]
+
+[tool.ruff.lint.flake8-bugbear]
+# `def endpoint(service = Depends(get_service))` is FastAPI's declared idiom for
+# dependency injection, not the mutable-default-argument bug B008 exists to
+# catch: FastAPI reads the default at decoration time and never reuses the
+# object across requests. Told to the linter rather than silenced line by line.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Body"]
+
+[tool.ruff.lint.per-file-ignores]
+# Asserts in tests are the entire point, and a test may hardcode a token-looking
+# string. S is a production-code ruleset.
+"tests/**" = ["S101"]
+# This test drives the container it just built: it shells out to `docker` and
+# makes HTTP calls to the port it published. S603/S607/S310 are all warning
+# about exactly that, which is the test's whole job -- there is no untrusted
+# input here, only a hardcoded command and a localhost URL.
+"tests/test_docker.py" = ["S101", "S310", "S603", "S607"]
+# Two asserts in the source are load-bearing invariant checks documented at the
+# call site, not input validation -- input validation raises ValueError here.
+"src/molecular_property_predictor/baseline.py" = ["S101"]
+"src/molecular_property_predictor/train.py" = ["S101"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

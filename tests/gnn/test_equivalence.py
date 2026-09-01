@@ -72,7 +72,7 @@ def test_both_random_splits_select_identical_molecules():
     our_parts = gnn_data.random_split(ours, seed=0)
 
     for their_part, our_part, name in zip(
-        their_parts, our_parts, ("train", "validation", "test")
+        their_parts, our_parts, ("train", "validation", "test"), strict=True
     ):
         assert len(our_part) == len(their_part), f"{name} differs in size"
         assert np.array_equal(

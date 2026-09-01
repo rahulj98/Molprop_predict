@@ -20,7 +20,6 @@ from molecular_property_predictor.api.main import create_app
 from molecular_property_predictor.api.schemas import METHANE_EXAMPLE
 from molecular_property_predictor.api.service import PredictionService
 from molecular_property_predictor.features import N_MAX_ATOMS
-
 from tests.test_api_service import build_artifact
 
 
@@ -166,15 +165,24 @@ def test_largest_representable_molecule_is_served(client):
 @pytest.mark.parametrize(
     "payload, reason",
     [
-        ({"atomic_numbers": [6, 1], "coordinates": [[0.0, 0.0, 0.0]]}, "length mismatch"),
+        (
+            {"atomic_numbers": [6, 1], "coordinates": [[0.0, 0.0, 0.0]]},
+            "length mismatch",
+        ),
         ({"atomic_numbers": [], "coordinates": []}, "empty molecule"),
         ({"atomic_numbers": [6], "coordinates": [[0.0, 0.0]]}, "2D coordinate"),
         (
-            {"atomic_numbers": [6, 15], "coordinates": [[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]]},
+            {
+                "atomic_numbers": [6, 15],
+                "coordinates": [[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]],
+            },
             "element outside QM9",
         ),
         (
-            {"atomic_numbers": [6, 1], "coordinates": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]},
+            {
+                "atomic_numbers": [6, 1],
+                "coordinates": [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+            },
             "coincident atoms",
         ),
         ({"atomic_numbers": [6]}, "missing coordinates"),
@@ -204,7 +212,12 @@ def test_one_bad_molecule_rejects_the_whole_batch(client):
     """Better than a partial response the caller has to reconcile by index."""
     response = client.post(
         "/predict/batch",
-        json={"molecules": [METHANE_EXAMPLE, {"atomic_numbers": [6], "coordinates": []}]},
+        json={
+            "molecules": [
+                METHANE_EXAMPLE,
+                {"atomic_numbers": [6], "coordinates": []},
+            ]
+        },
     )
 
     assert response.status_code == 422

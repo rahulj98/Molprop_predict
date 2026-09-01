@@ -43,7 +43,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from molecular_property_predictor.data import DEFAULT_PROCESSED_DIR, load_qm9, split_dataset
+from molecular_property_predictor.data import (
+    DEFAULT_PROCESSED_DIR,
+    load_qm9,
+    split_dataset,
+)
 from molecular_property_predictor.features import load_features
 from molecular_property_predictor.model import DEFAULT_MODEL_DIR, load_artifact, predict
 
@@ -110,7 +114,8 @@ def figure_model_comparison(validation_mae: float) -> Path:
             "Gradient boosting\n(geometry)",
             float(
                 results.query(
-                    "model == 'gradient_boosting' and representation == 'sorted_coulomb'"
+                    "model == 'gradient_boosting' "
+                    "and representation == 'sorted_coulomb'"
                 )["mae_ev"].iloc[0]
             ),
         ),
@@ -124,7 +129,7 @@ def figure_model_comparison(validation_mae: float) -> Path:
     figure, ax = plt.subplots(figsize=(8.5, 4.6), dpi=150)
     bars = ax.bar(labels, values, color=colours, width=0.62, zorder=3)
 
-    for bar, value in zip(bars, values):
+    for bar, value in zip(bars, values, strict=True):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             value + 0.02,
@@ -174,7 +179,9 @@ def figure_predicted_vs_true(true: np.ndarray, predicted: np.ndarray) -> Path:
     slope, intercept = np.polyfit(true, predicted, 1)
     errors = np.abs(predicted - true)
     mae = float(errors.mean())
-    r2 = 1.0 - float(((predicted - true) ** 2).sum() / ((true - true.mean()) ** 2).sum())
+    residual = float(((predicted - true) ** 2).sum())
+    total = float(((true - true.mean()) ** 2).sum())
+    r2 = 1.0 - residual / total
 
     figure, ax = plt.subplots(figsize=(6.4, 6.0), dpi=150)
 
@@ -191,8 +198,18 @@ def figure_predicted_vs_true(true: np.ndarray, predicted: np.ndarray) -> Path:
         rasterized=True,
     )
 
-    limits = [min(true.min(), predicted.min()) - 0.3, max(true.max(), predicted.max()) + 0.3]
-    ax.plot(limits, limits, color="#c0392b", linewidth=1.4, zorder=4, label="perfect prediction")
+    limits = [
+        min(true.min(), predicted.min()) - 0.3,
+        max(true.max(), predicted.max()) + 0.3,
+    ]
+    ax.plot(
+        limits,
+        limits,
+        color="#c0392b",
+        linewidth=1.4,
+        zorder=4,
+        label="perfect prediction",
+    )
 
     line_x = np.array(limits)
     ax.plot(
@@ -266,7 +283,9 @@ def main() -> None:
         figure_model_comparison(metadata.validation_mae_ev),
         figure_predicted_vs_true(true, predicted),
     ):
-        print(f"wrote {path.relative_to(Path.cwd()) if path.is_relative_to(Path.cwd()) else path}")
+        here = Path.cwd()
+        shown = path.relative_to(here) if path.is_relative_to(here) else path
+        print(f"wrote {shown}")
 
 
 if __name__ == "__main__":

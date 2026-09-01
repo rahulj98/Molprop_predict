@@ -114,11 +114,21 @@ def parse_xyz(text: str) -> dict:
 
 
 def _download(url: str, destination: Path) -> Path:
-    """Fetch ``url`` to ``destination`` unless it is already there."""
+    """Fetch ``url`` to ``destination`` unless it is already there.
+
+    The download lands on a temporary name and is renamed into place only once
+    it completes. Writing straight to ``destination`` means an interrupted
+    download leaves a truncated file that every later run treats as complete --
+    and a half-written 82 MB tarball fails much further downstream than the
+    place that actually broke.
+    """
     if destination.exists():
         return destination
+
     destination.parent.mkdir(parents=True, exist_ok=True)
-    urllib.request.urlretrieve(url, destination)
+    partial = destination.with_suffix(destination.suffix + ".partial")
+    urllib.request.urlretrieve(url, partial)  # noqa: S310 - fixed https URL
+    partial.replace(destination)
     return destination
 
 
@@ -131,7 +141,10 @@ def load_uncharacterized(path: Path) -> set[int]:
     training set and unanswerable ones in the test set.
     """
     flagged: set[int] = set()
-    for line in path.read_text().splitlines():
+    # Encoding stated explicitly: `read_text()` defaults to the platform's
+    # locale encoding, which is cp1252 on Windows and UTF-8 elsewhere. Letting
+    # it default makes the parse machine-dependent for no reason.
+    for line in path.read_text(encoding="utf-8").splitlines():
         tokens = line.split()
         if tokens and tokens[0].isdigit():
             flagged.add(int(tokens[0]))

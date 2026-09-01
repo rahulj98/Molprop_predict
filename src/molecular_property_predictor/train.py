@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import copy
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -48,7 +48,6 @@ import pandas as pd
 import torch
 from sklearn.preprocessing import StandardScaler
 from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
 
 from molecular_property_predictor.baseline import evaluate, split_positions
 from molecular_property_predictor.data import (
@@ -172,6 +171,42 @@ def prepare_data(
     return x_train, y[train_rows], x_validation, y[validation_rows], scaler
 
 
+def shuffled_batches(
+    n_rows: int, batch_size: int, *, device: torch.device | str | None = None
+) -> Iterator[torch.Tensor]:
+    """Yield index tensors covering every row exactly once, in a fresh order.
+
+    This is what ``DataLoader(TensorDataset(...), shuffle=True)`` does, and it
+    is worth knowing why it is spelled out here instead.
+
+    A ``DataLoader`` is built for the case where the data does *not* fit in
+    memory: it fetches one sample at a time through ``__getitem__`` and calls a
+    collate function to stack them into a batch. Our tensors are already
+    resident, already on the device and already rectangular, so all of that
+    machinery is per-sample Python overhead spent rebuilding something we handed
+    it whole. At this problem's shape that overhead is roughly a quarter of each
+    epoch -- 24-27% across repeated runs on the laptop this was written on, a
+    spread worth quoting rather than hiding behind a single figure. The number
+    comes from ``scripts/bench_training_loop.py``, committed so it can be
+    re-measured on another machine rather than taken on trust.
+
+    The trade is honest: ``DataLoader`` is the idiom, it is what everyone reads
+    for, and it is what you want the moment the data outgrows memory or needs
+    worker processes for augmentation. Neither applies here.
+
+    The permutation is drawn on the CPU and *then* moved, rather than drawn with
+    ``device=``, so that a given ``torch_seed`` produces the same batch order on
+    both CPU and GPU. Drawing on the device would use the CUDA generator, and a
+    seeded GPU run would stop reproducing a seeded CPU one -- which is also what
+    the ``DataLoader`` this replaced did, since its sampler drew on the host.
+    """
+    permutation = torch.randperm(n_rows)
+    if device is not None:
+        permutation = permutation.to(device)
+    for start in range(0, n_rows, batch_size):
+        yield permutation[start : start + batch_size]
+
+
 @torch.no_grad()
 def evaluate_model(
     model: MolecularNet, x: torch.Tensor, y: np.ndarray, batch_size: int = 8192
@@ -242,16 +277,6 @@ def train_model(
     y_train_t = torch.as_tensor(y_train).to(resolved)
     x_validation_t = torch.as_tensor(x_validation).to(resolved)
 
-    # DataLoader here is doing batching and per-epoch shuffling, not streaming:
-    # the data already fits in memory. num_workers=0 because the tensors are
-    # already on the device, so worker processes would only add overhead.
-    loader = DataLoader(
-        TensorDataset(x_train_t, y_train_t),
-        batch_size=config.batch_size,
-        shuffle=True,
-        num_workers=0,
-    )
-
     model = MolecularNet(
         n_features=x_train.shape[1],
         hidden_sizes=config.hidden_sizes,
@@ -272,7 +297,12 @@ def train_model(
         # the network in inference mode and quietly removes the regularisation.
         model.train()
         running_loss = 0.0
-        for x_batch, y_batch in loader:
+
+        for rows in shuffled_batches(
+            len(x_train_t), config.batch_size, device=resolved
+        ):
+            x_batch, y_batch = x_train_t[rows], y_train_t[rows]
+
             predictions = model(x_batch)         # 1. forward pass
             loss = loss_fn(predictions, y_batch)  # 2. how wrong was it
             optimizer.zero_grad()                 # 3. clear old gradients
@@ -325,7 +355,15 @@ def train_model(
         metrics=evaluate_model(model, x_validation_t, y_validation),
         seconds=time.perf_counter() - start_time,
         device=str(resolved),
-        extras={"target": target},
+        # Split sizes are recorded here because this is where they are already
+        # known. A caller that wants them -- `tracking.log_params`, for one --
+        # would otherwise have to re-derive the split from the frame, which is
+        # the same computation done twice and two places to keep in step.
+        extras={
+            "target": target,
+            "n_train": len(x_train),
+            "n_validation": len(x_validation),
+        },
     )
 
 

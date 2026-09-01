@@ -21,6 +21,7 @@ from molecular_property_predictor.train import (
     prepare_data,
     record_test_score,
     set_seed,
+    shuffled_batches,
     train_model,
 )
 
@@ -82,7 +83,9 @@ def test_scaler_is_fitted_on_training_rows_only(frame, config, tmp_path):
     train_rows, _, _ = split_positions(frame, seed=config.split_seed)
     features = load_features(frame, "composition", tmp_path)
 
-    np.testing.assert_allclose(scaler.mean_, features[train_rows].mean(axis=0), rtol=1e-6)
+    np.testing.assert_allclose(
+        scaler.mean_, features[train_rows].mean(axis=0), rtol=1e-6
+    )
     assert not np.allclose(scaler.mean_, features.mean(axis=0))
     # And the training rows really are standardised by those statistics.
     np.testing.assert_allclose(x_train.mean(axis=0), 0.0, atol=1e-5)
@@ -96,6 +99,65 @@ def test_prepare_data_splits_sizes_consistently(frame, config, tmp_path):
 
     assert len(x_train) == len(y_train) == 320  # 80% of 400
     assert len(x_validation) == len(y_validation) == 40  # 10%
+
+
+# --- Batching ---------------------------------------------------------------
+#
+# `shuffled_batches` replaced a `DataLoader`, and the failure it can introduce
+# is silent: an off-by-one in the slicing would drop rows from every epoch, the
+# model would simply train on less data, and every other test here would still
+# pass. So the contract is asserted directly rather than inferred from whether
+# training still converges.
+
+
+def test_shuffled_batches_visits_every_row_exactly_once():
+    """The property a DataLoader gave us for free, and the one worth keeping."""
+    seen = torch.cat(list(shuffled_batches(100, 16)))
+
+    assert sorted(seen.tolist()) == list(range(100))
+
+
+def test_shuffled_batches_includes_the_trailing_partial_batch():
+    """100 rows in batches of 16 is six full batches and a remainder of four.
+
+    Dropping the remainder is the classic way to lose data here: it is what
+    ``DataLoader(drop_last=True)`` does on purpose, and it costs a silent 4% of
+    every epoch if it happens by accident.
+    """
+    sizes = [len(rows) for rows in shuffled_batches(100, 16)]
+
+    assert sizes == [16, 16, 16, 16, 16, 16, 4]
+
+
+def test_shuffled_batches_divides_evenly_when_it_can():
+    sizes = [len(rows) for rows in shuffled_batches(96, 16)]
+
+    assert sizes == [16] * 6
+
+
+def test_shuffled_batches_reshuffles_between_epochs():
+    """A fixed order across epochs would make the shuffling decorative."""
+    set_seed(0)
+    first = torch.cat(list(shuffled_batches(100, 16)))
+    second = torch.cat(list(shuffled_batches(100, 16)))
+
+    assert not torch.equal(first, second)
+
+
+def test_shuffled_batches_is_reproducible_for_a_given_seed():
+    """Seeded runs must agree, or `torch_seed` in the metadata means nothing."""
+    set_seed(0)
+    first = torch.cat(list(shuffled_batches(100, 16)))
+    set_seed(0)
+    second = torch.cat(list(shuffled_batches(100, 16)))
+
+    assert torch.equal(first, second)
+
+
+def test_shuffled_batches_handles_a_batch_larger_than_the_data():
+    sizes = [len(rows) for rows in shuffled_batches(10, 256)]
+
+    assert sizes == [10]
 
 
 # --- The loop ---------------------------------------------------------------
@@ -124,7 +186,9 @@ def test_history_has_one_row_per_epoch(frame, config, tmp_path):
     run = train_model(frame, config, processed_dir=tmp_path, device="cpu")
 
     assert list(run.history["epoch"]) == list(range(1, len(run.history) + 1))
-    assert set(run.history.columns) >= {"epoch", "train_loss", "mae_ev", "rmse_ev", "r2"}
+    assert set(run.history.columns) >= {
+        "epoch", "train_loss", "mae_ev", "rmse_ev", "r2"
+    }
 
 
 def test_returned_model_carries_the_best_epoch_not_the_last(frame, config, tmp_path):

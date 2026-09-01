@@ -39,8 +39,8 @@ the per-molecule cost does not depend on the largest molecule present.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 import numpy as np
 import torch
@@ -103,7 +103,9 @@ def radius_graph(
     """
     positions = np.asarray(positions, dtype=np.float64)
     if positions.ndim != 2 or positions.shape[1] != 3:
-        raise ValueError(f"positions must have shape (n_atoms, 3), got {positions.shape}")
+        raise ValueError(
+            f"positions must have shape (n_atoms, 3), got {positions.shape}"
+        )
 
     deltas = positions[:, None, :] - positions[None, :, :]
     distances = np.linalg.norm(deltas, axis=-1)
@@ -263,7 +265,11 @@ def collate(
 
     offsets = np.cumsum([0] + [graph.n_atoms for graph in graphs[:-1]])
     edge_index = np.concatenate(
-        [graph.edge_index + offset for graph, offset in zip(graphs, offsets)], axis=1
+        [
+            graph.edge_index + offset
+            for graph, offset in zip(graphs, offsets, strict=True)
+        ],
+        axis=1,
     )
 
     batch = np.concatenate(

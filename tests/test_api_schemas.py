@@ -22,8 +22,8 @@ from molecular_property_predictor.api.schemas import (
     MIN_INTERATOMIC_DISTANCE,
     BatchRequest,
     Health,
-    Molecule,
     ModelInfo,
+    Molecule,
     Prediction,
 )
 from molecular_property_predictor.data import ATOMIC_NUMBERS
@@ -182,7 +182,7 @@ def test_zero_and_negative_atomic_numbers_are_rejected():
 
 def test_coincident_atoms_are_rejected():
     """The case that would divide by zero and return `inf` or `NaN`."""
-    with pytest.raises(ValidationError, match="below the .* floor"):
+    with pytest.raises(ValidationError, match=r"below the .* floor"):
         Molecule(
             atomic_numbers=[6, 1],
             coordinates=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],

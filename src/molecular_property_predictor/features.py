@@ -256,7 +256,9 @@ def featurize(
         Shape ``(len(frame), n_features)``.
     """
     if kind not in FEATURE_KINDS:
-        raise ValueError(f"unknown kind {kind!r}; expected one of {sorted(FEATURE_KINDS)}")
+        raise ValueError(
+            f"unknown kind {kind!r}; expected one of {sorted(FEATURE_KINDS)}"
+        )
     build = FEATURE_KINDS[kind]
 
     # Reading the two columns directly rather than via `data.geometry`, which

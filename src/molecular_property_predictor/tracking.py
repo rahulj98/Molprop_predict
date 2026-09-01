@@ -89,7 +89,6 @@ from molecular_property_predictor.model import (
 from molecular_property_predictor.train import (
     TrainingConfig,
     TrainingRun,
-    prepare_data,
     train_model,
 )
 
@@ -234,15 +233,19 @@ def track_training(
             on_epoch=lambda epoch, metrics: mlflow.log_metrics(metrics, step=epoch),
         )
 
-        x_train, _, x_validation, _, _ = prepare_data(
-            frame, config, target=target, processed_dir=processed_dir
-        )
+        # Every number here is read off what `train_model` already produced --
+        # the width from the network it built, the split sizes from the run's
+        # `extras`. The obvious alternative, calling `prepare_data` again here
+        # to measure its arrays, re-reads the whole feature cache and re-fits a
+        # StandardScaler over the training split, repeating work that finished
+        # a moment earlier. Re-deriving them from `split_positions` instead
+        # would be cheap but would put the same computation in two places.
         mlflow.log_params(
             {
                 "target": target,
-                "n_features": x_train.shape[1],
-                "n_train": len(x_train),
-                "n_validation": len(x_validation),
+                "n_features": run.model.n_features,
+                "n_train": run.extras["n_train"],
+                "n_validation": run.extras["n_validation"],
                 "n_parameters": sum(p.numel() for p in run.model.parameters()),
                 "device": run.device,
             }
@@ -273,7 +276,7 @@ def track_training(
 
         mlflow.log_artifact(str(artifact))
         mlflow.log_artifact(str(history_path))
-        mlflow.log_dict(_signature_dict(x_train.shape[1]), "signature.json")
+        mlflow.log_dict(_signature_dict(run.model.n_features), "signature.json")
 
         return active.info.run_id, run
 

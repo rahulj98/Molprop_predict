@@ -10,7 +10,6 @@ from molecular_gnn.data import (
     HARTREE_TO_EV,
     _parse_float,
     murcko_scaffold,
-    parse_xyz,
     random_split,
     scaffold_split,
 )

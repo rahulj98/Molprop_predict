@@ -46,11 +46,14 @@ from molecular_property_predictor.model import predict as predict_from_features
 #: Environment variable naming the checkpoint to serve.
 #:
 #: Configuration comes from the environment rather than a constant in the source
-#: because the same image has to run in three places that disagree about paths:
-#: this laptop, the Phase 7 container, and whatever Phase 8 deploys onto. That
-#: convention -- code identical everywhere, configuration injected per
-#: environment -- is why the container built in Phase 7 can be the exact artifact
-#: that gets deployed, rather than one rebuilt with production values baked in.
+#: because the same code has to run in places that disagree about paths: a
+#: checkout, where the checkpoint sits under `models/`, and the container, where
+#: it is baked in at a fixed location. That convention -- code identical
+#: everywhere, configuration injected per environment -- is what lets the built
+#: image be the exact artifact that runs, rather than one rebuilt with different
+#: values compiled in. Hosting the container behind a public URL was dropped as
+#: a scope decision (recorded in CLAUDE.md); that changed where this runs, not
+#: why it is worth making configurable.
 MODEL_PATH_ENV = "MODEL_PATH"
 
 #: Default checkpoint, used when :data:`MODEL_PATH_ENV` is unset.

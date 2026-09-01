@@ -179,7 +179,7 @@ curl -X POST http://localhost:8000/predict \
 
 The reference value for methane is +3.19 eV. That is an unusually large error and it is kept here deliberately: methane sits at the 100th percentile of the dataset's range, exactly where the shrinkage shown in the figure above is worst. `notebooks/06_api.ipynb` works through it, and shows eight randomly drawn molecules averaging 0.19 eV for comparison.
 
-**Tests:** `pytest` runs 275 tests, of which 267 need nothing but the installed package. Three more (`-m dataset`) check that both packages agree on the dataset and its splits, and need QM9 on disk. Five (`-m docker`) exercise the built container image — that the checkpoint is really inside it, that a prediction survives a real socket, that the process is not running as root. Both groups skip cleanly rather than failing when what they need is absent.
+**Tests:** `pytest` runs 281 tests, of which 273 need nothing but the installed package. Three more (`-m dataset`) check that both packages agree on the dataset and its splits, and need QM9 on disk. Five (`-m docker`) exercise the built container image — that the checkpoint is really inside it, that a prediction survives a real socket, that the process is not running as root. Both groups skip cleanly rather than failing when what they need is absent.
 
 **Lint:** `ruff check` — one tool covering what flake8, isort, black, pyupgrade and bandit would otherwise cover separately. The rule selection and every exception to it are commented in `pyproject.toml`; `notebooks/` is excluded, because those are committed with their outputs and re-running them to satisfy a linter would rewrite the numbers the prose quotes.
 

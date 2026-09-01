@@ -208,7 +208,7 @@ def test_artifact_preserves_metadata(net, scaler, metadata, tmp_path):
 
 
 def test_artifact_loads_onto_cpu(net, scaler, metadata, tmp_path):
-    """Guards the deployment path: Phase 8's free tier has no GPU."""
+    """Guards the serving path: the container has no GPU, whatever trained it."""
     save_artifact(tmp_path / "model.pt", net, scaler, metadata)
     loaded_net, _, _ = load_artifact(tmp_path / "model.pt", device="cpu")
 

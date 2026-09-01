@@ -3,8 +3,13 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .eggs/
-build/
-dist/
+# Anchored to the repository root with a leading slash. Unanchored, `build/`
+# matches a directory of that name at *any* depth -- which silently excluded
+# `notebooks/build/`, a deliberate series of notebooks, on the strength of a
+# rule meant for setuptools output. A pattern for one specific directory should
+# say which one.
+/build/
+/dist/
 
 # --- Virtual environments ---
 .venv/

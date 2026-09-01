@@ -12,6 +12,7 @@ from molecular_gnn.graphs import (
     collate,
     cosine_cutoff,
     gaussian_basis,
+    graph_from_row,
     radius_graph,
 )
 
@@ -243,3 +244,68 @@ def test_collate_without_targets_is_allowed(methane_geometry):
     batch = collate([graph])
 
     assert batch.targets is None
+
+
+# --- From a dataframe row -----------------------------------------------------
+#
+# `graph_from_row` is the adapter between what `molecular_gnn.data` loads and
+# what `build_graph` wants: it reshapes the flat coordinate column and reads the
+# target out by name. Small enough to look obviously correct, which is exactly
+# the kind of function that ends up wrong -- the coordinates arrive flattened,
+# and a reshape is one transposition away from silently building a different
+# molecule.
+
+
+def test_graph_from_row_reshapes_the_flat_coordinate_column(methane):
+    """Coordinates are stored flat and must come back as (n_atoms, 3)."""
+    graph = graph_from_row(methane)
+
+    assert graph.positions.shape == (5, 3)
+    assert graph.atomic_numbers.tolist() == [6, 1, 1, 1, 1]
+
+
+def test_graph_from_row_matches_building_the_graph_by_hand(methane, methane_geometry):
+    """The adapter must not change the graph, only where the arrays come from."""
+    numbers, positions = methane_geometry
+
+    from_row = graph_from_row(methane)
+    by_hand = build_graph(numbers, positions, target=methane["lumo"])
+
+    assert np.array_equal(from_row.atomic_numbers, by_hand.atomic_numbers)
+    assert np.allclose(from_row.positions, by_hand.positions)
+    assert np.array_equal(from_row.edge_index, by_hand.edge_index)
+    assert np.allclose(from_row.edge_distance, by_hand.edge_distance)
+
+
+def test_graph_from_row_reads_the_named_target(methane):
+    graph = graph_from_row(methane, target_column="lumo")
+
+    assert graph.target == pytest.approx(methane["lumo"])
+
+
+def test_graph_from_row_can_read_a_different_target(methane):
+    """Swapping the predicted property is a one-argument change, as intended.
+
+    The column is supplied here rather than taken from the fixture because this
+    package's parser keeps only what it needs -- ``lumo`` and the geometry --
+    unlike the first package, which retains all fifteen properties.
+    """
+    row = {**methane, "gap": 13.7383}
+
+    graph = graph_from_row(row, target_column="gap")
+
+    assert graph.target == pytest.approx(13.7383)
+
+
+def test_graph_from_row_leaves_the_target_unset_when_the_column_is_absent(methane):
+    """Inference rows carry geometry and no answer, and that is not an error."""
+    graph = graph_from_row(methane, target_column="not_a_column")
+
+    assert graph.target is None
+
+
+def test_graph_from_row_honours_the_cutoff(methane):
+    """A cutoff below every bond length leaves the atoms unconnected."""
+    graph = graph_from_row(methane, cutoff=0.5)
+
+    assert graph.edge_index.shape[1] == 0

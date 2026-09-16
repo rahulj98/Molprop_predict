@@ -121,6 +121,14 @@ If you only open three files, open `features.py`, `train.py`, and `notebooks/03_
 | `05b_convergence` | Was a claim in Phase 5 wrong? (Yes — it is corrected here rather than quietly fixed) |
 | `06_api` | Does the served model behave, and why is the methane example so far off? |
 
+**The build notebooks** (`notebooks/build/`) — the same ground approached from the opposite direction. The numbered notebooks above *use* the finished package; these *write* it. Every function appears in the notebook, with the reasoning next to it, before it exists anywhere else. Read the numbered ones to see what was found; read these if you want to build the thing yourself.
+
+| Notebook | What you write | How it ends |
+|---|---|---|
+| `B1_data_from_scratch` | All of `data.py` — the parser, the unit conversion, the filter for the molecules the QM9 authors flagged, and a seeded train/validation/test split derived from first principles | A cross-check that asserts what you built matches the shipped package: every shared constant, the parser field for field, and all three splits molecule for molecule |
+
+B1 covers Phase 1 and is the only one that exists so far. Its most valuable cell is the target-selection check — least squares on atom counts alone, which scores R² = 1.0000 on four of QM9's fifteen properties and 0.4555 on LUMO. Twenty lines, and it is what the choice of target rests on.
+
 **The commit history** is one commit per phase, each with a long message explaining what was decided and why. `git log` is a readable document in this repo, not a changelog.
 
 ## Run it

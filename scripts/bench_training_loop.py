@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import statistics
 import time
+from dataclasses import replace
 
 import torch
 from torch import nn
@@ -74,9 +75,21 @@ def epoch_with_shuffled_batches(model, optimizer, loss_fn, x, y, batch_size) -> 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repeats", type=int, default=5, help="epochs per approach")
+    parser.add_argument(
+        "--hidden",
+        default=None,
+        metavar="W,W,W",
+        help="hidden widths, e.g. 1024,512,256 for the served checkpoint's shape. "
+        "Defaults to TrainingConfig's 512,256,128. Worth varying: the saving is "
+        "a share of each epoch, so it shrinks as the matrix multiplies grow and "
+        "the fixed per-batch overhead does not.",
+    )
     args = parser.parse_args()
 
     config = TrainingConfig()
+    if args.hidden:
+        widths = tuple(int(w) for w in args.hidden.split(","))
+        config = replace(config, hidden_sizes=widths)
     x = torch.randn(N_ROWS, N_FEATURES)
     y = torch.randn(N_ROWS)
     loss_fn = nn.MSELoss()
@@ -115,8 +128,9 @@ def main() -> None:
     manual_median = statistics.median(manual_times)
     saving = (dataloader_median - manual_median) / dataloader_median * 100
 
-    print(f"rows {N_ROWS:,}   features {N_FEATURES}   batch {config.batch_size}   "
-          f"threads {torch.get_num_threads()}")
+    widths = "-".join(str(h) for h in config.hidden_sizes)
+    print(f"rows {N_ROWS:,}   features {N_FEATURES}   hidden {widths}   "
+          f"batch {config.batch_size}   threads {torch.get_num_threads()}")
     print(f"  DataLoader          {dataloader_median:6.2f} s/epoch")
     print(f"  shuffled_batches    {manual_median:6.2f} s/epoch")
     print(f"  saving              {saving:6.1f}% of each epoch")

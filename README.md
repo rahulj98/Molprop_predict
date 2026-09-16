@@ -121,6 +121,8 @@ If you only open three files, open `features.py`, `train.py`, and `notebooks/03_
 | `05b_convergence` | Was a claim in Phase 5 wrong? (Yes — it is corrected here rather than quietly fixed) |
 | `06_api` | Does the served model behave, and why is the methane example so far off? |
 
+> Notebooks `04`, `05` and `05b` recorded their outputs before the training loop was rewritten, so re-running them reproduces their *rankings* but not their last digits — the batch sequence changed, and with it the third and fourth decimal of every MAE. Every comparison those notebooks draw still holds; only the exact figures move.
+
 **The build notebooks** (`notebooks/build/`) — the same ground approached from the opposite direction. The numbered notebooks above *use* the finished package; these *write* it. Every function appears in the notebook, with the reasoning next to it, before it exists anywhere else. Read the numbered ones to see what was found; read these if you want to build the thing yourself.
 
 | Notebook | What you write | How it ends |
@@ -197,6 +199,8 @@ The reference value for methane is +3.19 eV. That is an unusually large error an
 
 Everything below regenerates from code plus recorded random seeds. Measured on a laptop CPU (no GPU anywhere in this project):
 
+> **The training timings predate the loop rewrite and have not been adjusted.** The loop no longer uses a `DataLoader`, which removed a measured 10–13% of each epoch at the served checkpoint's width and 20–27% at the smaller default — so every training row below is now *conservative*. (The ranges are wide because the figure moves with whatever else the machine is doing; the gap between the two widths is the real effect, and the spread within each is noise.) They are left as the numbers that were actually observed rather than replaced by arithmetic nobody ran: re-measuring the sweep rows alone is over an hour and would not change a single conclusion. `scripts/bench_training_loop.py` measures the difference if you want it.
+
 | Step | How | Time | Produces |
 |---|---|---|---|
 | Install | `pip install -e ".[dev]"` | ~1 min | |
@@ -209,7 +213,9 @@ Everything below regenerates from code plus recorded random seeds. Measured on a
 | Figures in this README | `python scripts/make_figures.py` | ~30 s | `docs/figures/*.png` |
 | Build the container | `docker build -t molecular-property-predictor .` | 105 s from scratch, seconds when cached | a 2.09 GB image |
 
-The served checkpoint (`models/served.pt`, learning rate 1e-3, hidden layers 1024-512-256) took **15 minutes** to train.
+The served checkpoint (`models/served.pt`, learning rate 1e-3, hidden layers 1024-512-256) took **15 minutes** to train — 100 epochs, with the best at epoch 90.
+
+> **That checkpoint no longer reproduces bit-for-bit.** Changing how batches are drawn changed the batch *sequence*, so retraining at the same `split_seed=0, torch_seed=0` now produces a slightly different — and equally valid — checkpoint, whose validation MAE will not land exactly on 0.2476 eV. The committed file predates the change. Nothing about the reported result is in doubt; the arithmetic path to it is simply no longer the same one, and saying so is cheaper than pretending a seed guarantees more than it does.
 
 `models/` is gitignored — trained artifacts are build outputs — with one deliberate exception: `models/served.pt` is committed, at 4.2 MB, so that `docker build` works from a fresh clone. Every other checkpoint comes from running the notebooks.
 

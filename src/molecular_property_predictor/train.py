@@ -184,11 +184,19 @@ def shuffled_batches(
     collate function to stack them into a batch. Our tensors are already
     resident, already on the device and already rectangular, so all of that
     machinery is per-sample Python overhead spent rebuilding something we handed
-    it whole. At this problem's shape that overhead is roughly a quarter of each
-    epoch -- 24-27% across repeated runs on the laptop this was written on, a
-    spread worth quoting rather than hiding behind a single figure. The number
-    comes from ``scripts/bench_training_loop.py``, committed so it can be
-    re-measured on another machine rather than taken on trust.
+    it whole. How much that costs depends on how much real arithmetic it is
+    competing with: at the default 512-256-128 the per-batch Python overhead is
+    20-27% of each epoch, and at the served checkpoint's wider 1024-512-256 it
+    is 10-13%, because the matrix multiplies grow while the fixed overhead does
+    not. Measure it yourself with ``scripts/bench_training_loop.py``, which is
+    committed for exactly that and takes ``--hidden`` to switch between them.
+
+    Two things about those ranges are deliberate. Quoting both configurations
+    matters, because a single "about 25%" would be one real measurement
+    generalised past the only shape it was taken at. And each range is wide
+    because the figure moves with whatever else the machine is doing -- the
+    same command gave 27% and 20% on a quiet and a busy laptop. The spread
+    within a configuration is noise; the gap between the two is the effect.
 
     The trade is honest: ``DataLoader`` is the idiom, it is what everyone reads
     for, and it is what you want the moment the data outgrows memory or needs

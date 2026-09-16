@@ -37,6 +37,26 @@ from molecular_property_predictor.model import (
 
 N_SORTED_COULOMB = N_MAX_ATOMS * (N_MAX_ATOMS + 1) // 2  # 435
 
+#: Tolerance, in eV, for two predictions that ought to be "the same number".
+#:
+#: Deliberately not zero, and the reason is worth stating. Scoring two molecules
+#: in one batch is a different BLAS call from scoring them one at a time: the
+#: matrix multiply selects a different kernel and accumulates in a different
+#: order, and floating-point addition is not associative. The two results
+#: therefore agree to within a few float32 ULP rather than bit-for-bit, and
+#: *whether* they agree bit-for-bit depends on the CPU the tests run on.
+#:
+#: This is not hypothetical. The two tests below asserted ``atol=0`` and passed
+#: on the author's machine for weeks, then failed on the first CI run against a
+#: clean Ubuntu runner, by 4.1e-8 eV and 1.5e-8 eV -- roughly 5-14 ULP at these
+#: magnitudes. The assertion was demanding a determinism IEEE 754 never offered.
+#:
+#: 1e-6 eV sits two orders of magnitude above that noise and five below what
+#: these tests exist to catch: a real batching or ordering defect misattributes
+#: an entire prediction, which on this target is O(1 eV). Nothing that matters
+#: can hide under this tolerance.
+PREDICTION_TOLERANCE_EV = 1e-6
+
 
 def build_artifact(
     tmp_path,
@@ -199,27 +219,35 @@ def test_batching_does_not_change_any_prediction(service, methane_geometry):
 
     If it did not, a caller's result would depend on what else they happened to
     submit alongside it -- and nothing would raise.
+
+    "The same" here means to within :data:`PREDICTION_TOLERANCE_EV` rather than
+    bit-for-bit; see that constant for why exactness is the wrong thing to ask
+    of two different BLAS call shapes.
     """
     fluorine = (np.array([9, 9]), np.array([[0.0, 0.0, 0.0], [1.4, 0.0, 0.0]]))
 
     together = service.predict([methane_geometry, fluorine])
     apart = [service.predict_one(methane_geometry), service.predict_one(fluorine)]
 
-    np.testing.assert_allclose(together, apart, rtol=0, atol=0)
+    np.testing.assert_allclose(together, apart, rtol=0, atol=PREDICTION_TOLERANCE_EV)
 
 
 def test_order_is_preserved(service, methane_geometry):
     """Predictions come back aligned to the submitted order.
 
     Misalignment here attributes a prediction to the wrong molecule, which is
-    wrong in the worst possible way: quietly, and with plausible numbers.
+    wrong in the worst possible way: quietly, and with plausible numbers. Such a
+    swap moves a prediction by O(1 eV), so :data:`PREDICTION_TOLERANCE_EV` is
+    nowhere near wide enough to let one through.
     """
     hydrogen = (np.array([1]), np.array([[0.0, 0.0, 0.0]]))
 
     forward = service.predict([methane_geometry, hydrogen])
     backward = service.predict([hydrogen, methane_geometry])
 
-    np.testing.assert_allclose(forward, backward[::-1], rtol=0, atol=0)
+    np.testing.assert_allclose(
+        forward, backward[::-1], rtol=0, atol=PREDICTION_TOLERANCE_EV
+    )
 
 
 def test_service_matches_calling_predict_directly(service, methane_geometry):
